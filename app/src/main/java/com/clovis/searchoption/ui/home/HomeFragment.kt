@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,7 +12,9 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -70,6 +73,8 @@ class HomeFragment : Fragment() {
 
         textView.setOnClickListener {
             showSearchDialog(requireContext())
+            val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(textView, InputMethodManager.SHOW_IMPLICIT)
         }
         return root
     }
@@ -80,12 +85,14 @@ class HomeFragment : Fragment() {
     }
 
     fun showSearchDialog(context: Context) {
-        val dialog = BottomSheetDialog(context)
+        val dialog = BottomSheetDialog(context, R.style.TransparentBottomSheet)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_search, null)
 
         val etSearch = view.findViewById<EditText>(R.id.etSearch)
+        val searchWrapper = view.findViewById<LinearLayout>(R.id.search_wrapper)
         val ivClear = view.findViewById<ImageView>(R.id.ivClear)
         val recyclerView = view.findViewById<RecyclerView>(R.id.recyclerView)
+        val listWrapper = view.findViewById<LinearLayout>(R.id.list_wrapper)
 
         val adapter = MyAdapter()
         recyclerView.layoutManager = LinearLayoutManager(context)
@@ -96,98 +103,219 @@ class HomeFragment : Fragment() {
         var length = 0
         var query = ""
 
+        // Must be before show()
+        dialog.window?.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
+
         dialog.setContentView(view)
-        dialog.window?.findViewById<View>(
-            com.google.android.material.R.id.design_bottom_sheet
-        )?.setBackgroundColor(Color.TRANSPARENT)
-        //dialog.window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
         dialog.show()
 
         val bottomSheet = dialog.findViewById<View>(
             com.google.android.material.R.id.design_bottom_sheet
         )
 
-        bottomSheet?.let {
-            val behavior = BottomSheetBehavior.from(it)
+        bottomSheet?.let { sheet ->
+            // Rounded card background matching the screenshot
+           // sheet.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
 
+            // Horizontal margins
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            val params = sheet.layoutParams as ViewGroup.MarginLayoutParams
+            params.leftMargin = margin
+            params.rightMargin = margin
+            sheet.layoutParams = params
+
+            // Behavior
+            val behavior = BottomSheetBehavior.from(sheet)
             behavior.state = BottomSheetBehavior.STATE_EXPANDED
             behavior.skipCollapsed = true
             behavior.isFitToContents = true
+
+            // Remove gap between bottom sheet and keyboard
+            ViewCompat.setOnApplyWindowInsetsListener(sheet) { v, insets ->
+                v.setPadding(0, 0, 0, 0)
+                insets
+            }
         }
 
-        bottomSheet?.let { sheet ->
-            val layoutParams = sheet.layoutParams as ViewGroup.MarginLayoutParams
-            val margin = (16 * resources.displayMetrics.density).toInt() // 16dp
-
-            layoutParams.leftMargin = margin
-            layoutParams.rightMargin = margin
-
-            sheet.layoutParams = layoutParams
-        }
-
-        bottomSheet?.setBackgroundColor(Color.TRANSPARENT)
-
-        val marginHorizontal = 12 // dp
-        val density = context.resources.displayMetrics.density
-        val marginPx = (marginHorizontal * density).toInt()
-        val screenWidth = context.resources.displayMetrics.widthPixels
-
-//        dialog.window?.setLayout(screenWidth - (marginPx * 2),
-//            ViewGroup.LayoutParams.WRAP_CONTENT
-//        )
-
-
-
-        // Show keyboard automatically
-        etSearch.requestFocus()
-        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT)
         recyclerView.addItemDecoration(
-            DividerWithoutLast(requireContext(),
-                LinearLayoutManager.VERTICAL))
+            DividerWithoutLast(requireContext(), LinearLayoutManager.VERTICAL)
+        )
 
+        // Show keyboard immediately
+        etSearch.post {
+            etSearch.requestFocus()
+        }
+
+        // Handle keyboard visibility changes
         ViewCompat.setOnApplyWindowInsetsListener(dialog.window!!.decorView) { _, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            if (!imeVisible && length != 0) {
-                filtered = fullList.filter { item ->
-                    item.lowercase().contains(query)
-                }.take(5)
+
+            if (imeVisible) {
+                listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
+                bottomSheet?.let { sheet ->
+                    // Horizontal margins
+                    val margin = (16 * resources.displayMetrics.density).toInt()
+                    val params = sheet.layoutParams as ViewGroup.MarginLayoutParams
+                    params.leftMargin = margin
+                    params.rightMargin = margin
+                    sheet.layoutParams = params
+
+                    // Behavior
+                    val behavior = BottomSheetBehavior.from(sheet)
+                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                    behavior.skipCollapsed = true
+                    behavior.isFitToContents = true
+
+                    // Remove gap between bottom sheet and keyboard
+                    ViewCompat.setOnApplyWindowInsetsListener(sheet) { v, insets ->
+                        v.setPadding(0, 0, 0, 0)
+                        insets
+                    }
+
+//                    val density = recyclerView.context.resources.displayMetrics.density
+//                    //val densityPadding = resources.displayMetrics.density
+//                    etSearch.setPadding(
+//                        (16 * density).toInt(),  // start
+//                        0,                        // top
+//                        (16 * density).toInt(),  // end
+//                        0                         // bottom
+//                    )
+
+                }
+
+                //val densityPadding = resources.displayMetrics.density
+                val density = recyclerView.context.resources.displayMetrics.density
+                recyclerView.setPadding(
+                    0,  // start
+                    0,                        // top
+                    0,  // end
+                    0                         // bottom
+                )
+                searchWrapper.setPadding(
+                    0,  // start
+                    0,                        // top
+                    0,  // end
+                    0                         // bottom
+                )
+
+                adjustRecyclerViewHeight(recyclerView, filtered.size)
+            } else if (length != 0) {
+                val screenHeight = context.resources.displayMetrics.heightPixels
+                val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                val statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                val searchBarHeight = (48 * context.resources.displayMetrics.density).toInt()
+                val padding = (24 * context.resources.displayMetrics.density).toInt()
+                val topOffset = (120 * context.resources.displayMetrics.density).toInt()
+
+                val availableHeight = screenHeight - statusBar - navBar - searchBarHeight - padding - topOffset
+
+                recyclerView.layoutParams = recyclerView.layoutParams.apply {
+                    height = availableHeight
+                }
+                val density = recyclerView.context.resources.displayMetrics.density
+                //val densityPadding = resources.displayMetrics.density
+                val margin = (16* resources.displayMetrics.density).toInt()
+                val params = etSearch.layoutParams as ViewGroup.MarginLayoutParams
+                params.leftMargin = margin
+                params.rightMargin = margin
+                etSearch.layoutParams = params
+
+                //val densityPadding = resources.displayMetrics.density
+                recyclerView.setPadding(
+                    (16 * density).toInt(), // start
+                    0,                        // top
+                    (16 * density).toInt(),   // end
+                    0                         // bottom
+                )
+                searchWrapper.setPadding(
+                    (16 * density).toInt(), // start
+                    0,                        // top
+                    (16 * density).toInt(),   // end
+                    (20 * density).toInt()
+                )
+
+                bottomSheet?.let { sheet ->
+                    // Horizontal margins
+                    val margin = (1* resources.displayMetrics.density).toInt()
+                    val params = sheet.layoutParams as ViewGroup.MarginLayoutParams
+                    params.leftMargin = margin
+                    params.rightMargin = margin
+                    sheet.layoutParams = params
+
+                    // Behavior
+                    val behavior = BottomSheetBehavior.from(sheet)
+                    behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                    behavior.skipCollapsed = true
+                    behavior.isFitToContents = true
+
+                    // Remove gap between bottom sheet and keyboard
+                    ViewCompat.setOnApplyWindowInsetsListener(sheet) { v, insets ->
+                        v.setPadding(0, 0, 0, 0)
+                        insets
+                    }
+                }
+
+                listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_top)
                 recyclerView.visibility = View.VISIBLE
                 adapter.submitList(filtered)
-                adjustRecyclerViewHeight(recyclerView, 10)
-                val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-                view.setPadding(0, 0, 0, imeHeight)
             }
+
             insets
         }
 
-
-        // Listen for text changes
         etSearch.addTextChangedListener { editable ->
-
             query = editable?.toString()?.lowercase().orEmpty()
             length = query.length
             ivClear.visibility = if (length > 0) View.VISIBLE else View.GONE
 
-            filtered =  if (length >= 1) {
-                fullList.filter { item ->
-                    item.lowercase().contains(query)
-                }.take(5)
-
+            filtered = if (length >= 1) {
+                fullList.filter { it.lowercase().contains(query) }.take(5)
             } else emptyList()
 
-            if(length >= 1) {
+            if(filtered.isEmpty()) {
+                query = ""
+                length = 0
+                adapter.submitList(emptyList())
+                recyclerView.visibility = View.GONE
+            }
+
+            Log.d("HomeFragment", "Filtered list: $filtered")
+
+            if (length >= 1) {
                 recyclerView.visibility = View.VISIBLE
                 adapter.submitList(filtered)
+                adjustRecyclerViewHeight(recyclerView, filtered.size)
             }
             else {
-                recyclerView.visibility = View.GONE
+                //listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
+                searchWrapper.setPadding(
+                    0, // start
+                    0,                        // top
+                    0,   // end
+                    0
+                )
+                query = ""
+                //adapter.submitList(emptyList())
+                //recyclerView.visibility = View.GONE
+                bottomSheet?.let { sheet ->
+                    // Rounded card background matching the screenshot
+                    // sheet.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
+                    // Horizontal margins
+                    val margin = (16 * resources.displayMetrics.density).toInt()
+                    val params = sheet.layoutParams as ViewGroup.MarginLayoutParams
+                    params.leftMargin = margin
+                    params.rightMargin = margin
+                    sheet.layoutParams = params
+                }
             }
         }
 
-        dialog.window?.setSoftInputMode(
-            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        )
+        ivClear.setOnClickListener {
+            etSearch.text.clear()
+        }
     }
 
     fun adjustRecyclerViewHeight(recyclerView: RecyclerView, itemCount: Int) {

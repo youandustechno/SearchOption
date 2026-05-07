@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="48dp"
+    android:layout_height="50dp"
     android:background="@drawable/bg_search"
     android:paddingStart="12dp"
     android:layout_gravity="center"
@@ -29,7 +29,7 @@
         android:layout_marginStart="4dp"
         android:background="@android:color/transparent"
         android:hint="Search"
-        android:paddingStart="8dp"
+        android:paddingStart="0dp"
         android:singleLine="true"
         android:textColor="#000"
         android:textColorHint="#888"
@@ -50,7 +50,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:tint="#666"
+        app:tint="#CCCCCC"
         tools:visibility="visible" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
