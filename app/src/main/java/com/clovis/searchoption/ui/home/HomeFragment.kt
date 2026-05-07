@@ -279,8 +279,6 @@ class HomeFragment : Fragment() {
                 adapter.submitList(filtered)
                 adjustRecyclerViewHeight(recyclerView, filtered.size)
             } else {
-                //adjustRecyclerViewHeight(recyclerView, 0)
-
                 listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
                 searchWrapper.setPadding(
                     0, // start
