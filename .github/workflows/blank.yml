@@ -1,0 +1,15 @@
+name: Copilot PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run AI review
+        run: |
+          echo "Send diff to AI model for review"
