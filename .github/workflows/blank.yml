@@ -1,4 +1,4 @@
-name: AI Code Review
+name: AI PR Review
 
 on:
   pull_request:
@@ -12,36 +12,126 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Get PR files
-        uses: actions/github-script@v7
+      - name: Get PR files with content
         id: files
+        uses: actions/github-script@v7
         with:
           script: |
             const files = await github.rest.pulls.listFiles({
               ...context.repo,
               pull_number: context.issue.number,
             });
-            return files.data.map(f => ({
-              filename: f.filename,
-              patch: f.patch
-            }));
 
-      - name: Create review
+            const result = [];
+
+            for (const file of files.data) {
+              if (
+                file.filename.endsWith(".kt") ||
+                file.filename.endsWith(".java")
+              ) {
+                const content = await github.rest.repos.getContent({
+                  ...context.repo,
+                  path: file.filename,
+                  ref: context.payload.pull_request.head.sha
+                });
+
+                const decoded = Buffer.from(
+                  content.data.content,
+                  'base64'
+                ).toString();
+
+                result.push({
+                  filename: file.filename,
+                  content: decoded
+                });
+              }
+            }
+
+            return result;
+
+      - name: AI Review + Comment
         uses: actions/github-script@v7
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           script: |
             const files = ${{ steps.files.outputs.result }};
+            const fetch = require("node-fetch");
 
-            const comments = files
-              .filter(f => f.patch)
-              .slice(0, 3) // limit for demo
-              .map(f => ({
-                path: f.filename,
-                position: 1,
-                body: `🤖 Suggestion: Review logic in ${f.filename}. Consider improving readability or splitting functions.`
-              }));
+            const comments = [];
+
+            for (const file of files.slice(0, 5)) { // limit for cost
+              const prompt = `
+You are a senior Android engineer reviewing a pull request.
+
+Be specific. DO NOT give generic advice.
+
+For each issue:
+- Reference exact line number
+- Explain why it's a problem
+- Suggest a concrete fix
+
+Focus on:
+- Kotlin best practices
+- Jetpack Compose issues
+- Performance problems
+- Readability
+- Bugs
+
+Return ONLY valid JSON like:
+[
+  {
+    "line": 10,
+    "comment": "Explain issue and fix"
+  }
+]
+
+If no issues, return [].
+
+Code:
+${file.content}
+              `;
+
+              const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  model: "gpt-4o-mini",
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.2
+                })
+              });
+
+              const data = await response.json();
+
+              let review;
+              try {
+                review = JSON.parse(data.choices[0].message.content);
+              } catch (e) {
+                console.log("Invalid JSON from AI");
+                continue;
+              }
+
+              for (const item of review) {
+                comments.push({
+                  path: file.filename,
+                  line: item.line,
+                  side: "RIGHT",
+                  body: `🤖 ${item.comment}`
+                });
+              }
+            }
+
+            if (comments.length === 0) {
+              console.log("No issues found");
+              return;
+            }
 
             await github.rest.pulls.createReview({
               ...context.repo,
