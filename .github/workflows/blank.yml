@@ -1,4 +1,4 @@
-name: Copilot PR Review
+name: AI PR Review
 
 on:
   pull_request:
@@ -7,9 +7,28 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
     steps:
       - uses: actions/checkout@v3
 
-      - name: Run AI review
+      - name: Get PR diff
         run: |
-          echo "Send diff to AI model for review"
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }} > pr.diff
+
+      - name: Post comment (test)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('pr.diff', 'utf8').slice(0, 5000);
+
+            const body = `🤖 AI Review (demo)\n\nHere is part of your diff:\n\n\`\`\`\n${diff}\n\`\`\``;
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body
+            });
