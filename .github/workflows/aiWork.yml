@@ -5,67 +5,61 @@
   with:
     script: |
       const files = ${{ steps.files.outputs.result }};
-      const fetch = require("node-fetch");
-
       const comments = [];
-
       for (const file of files.slice(0, 5)) {
-
-        const prompt = `
-You are a senior Android engineer reviewing a pull request.
-
+        const prompt = `You are a senior Android engineer reviewing a pull request.
 Be specific. DO NOT give generic advice.
-
 For each issue:
 - Reference exact line number
 - Explain why it's a problem
 - Suggest a concrete fix
-
 Focus on:
 - Kotlin best practices
 - Jetpack Compose issues
 - Performance problems
 - Readability
 - Bugs
-
-Return ONLY valid JSON like:
-[
-  {
-    "line": 10,
-    "comment": "Explain issue and fix"
-  }
-]
-
+Return ONLY valid JSON (no markdown, no fences) like:
+[{ "line": 10, "comment": "Explain issue and fix" }]
 If no issues, return [].
-
 Code:
-${file.content}
-        `;
-
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.2
-          })
-        });
-
-        const data = await response.json();
-
-        let review;
+${file.content}`;
+        let data;
         try {
-          review = JSON.parse(data.choices[0].message.content);
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.2
+            })
+          });
+          if (!response.ok) {
+            const err = await response.text();
+            console.error(`API error for ${file.filename}: ${response.status} ${err}`);
+            continue;
+          }
+          data = await response.json();
         } catch (e) {
-          console.log("Invalid JSON from AI");
+          console.error(`Fetch failed for ${file.filename}:`, e.message);
           continue;
         }
-
+        const raw = data?.choices?.[0]?.message?.content ?? "";
+        let review;
+        try {
+          const cleaned = raw.replace(/^```(?:json)?\n?/i, "").replace(/```$/, "").trim();
+          review = JSON.parse(cleaned);
+          if (!Array.isArray(review)) throw new Error("Not an array");
+        } catch (e) {
+          console.error(`Invalid JSON for ${file.filename}:`, raw);
+          continue;
+        }
         for (const item of review) {
+          if (typeof item.line !== "number" || !item.comment) continue;
           comments.push({
             path: file.filename,
             line: item.line,
@@ -74,12 +68,10 @@ ${file.content}
           });
         }
       }
-
       if (comments.length === 0) {
         console.log("No issues found");
         return;
       }
-
       await github.rest.pulls.createReview({
         ...context.repo,
         pull_number: context.issue.number,
