@@ -3,6 +3,9 @@ name: AI PR Review Blank
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - main_improvement_with_AI_copy_test-1
 
 jobs:
   review:
