@@ -27,9 +27,9 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 
 class HomeFragment : Fragment() {
 
-    private var _binding: FragmentHomeBinding? = null
+    private var _binding: FragmentHomeBinding?  = null
 
-    private val fullList = listOf(
+    private val FullList = listOf(
         "papaya",
         "lime",
         "lemon",
@@ -67,9 +67,11 @@ class HomeFragment : Fragment() {
         }
 
 
-
-
         textView.setOnClickListener {
+
+
+
+
             showSearchDialog(requireContext())
             val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(textView, InputMethodManager.SHOW_IMPLICIT)
@@ -215,13 +217,16 @@ class HomeFragment : Fragment() {
                 }
                 val density = recyclerView.context.resources.displayMetrics.density
                 //val densityPadding = resources.displayMetrics.density
-                val margin = (16* resources.displayMetrics.density).toInt()
-                val params = etSearch.layoutParams as ViewGroup.MarginLayoutParams
-                params.leftMargin = margin
-                params.rightMargin = margin
-                etSearch.layoutParams = params
+//                val margin = (16* resources.displayMetrics.density).toInt()
+//                val params = etSearch.layoutParams as ViewGroup.MarginLayoutParams
+//                params.leftMargin = margin
+//                params.rightMargin = margin
+//                etSearch.layoutParams = params
 
                 //val densityPadding = resources.displayMetrics.density
+
+
+                // Set padding for RecyclerView 3
                 recyclerView.setPadding(
                     (16 * density).toInt(), // start
                     0,                        // top
@@ -270,7 +275,7 @@ class HomeFragment : Fragment() {
             ivClear.visibility = if (length > 0) View.VISIBLE else View.GONE
 
             filtered = if (length >= 1) {
-                fullList.filter { it.lowercase().contains(query) }.take(5)
+                FullList.filter { it.lowercase().contains(query) }.take(5)
             } else emptyList()
 
             if (length >= 1) {
