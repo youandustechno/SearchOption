@@ -6,16 +6,21 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.clovis.searchoption.databinding.ItemTextBinding
-import com.clovis.searchoption.ui.home.DividerWithoutLast
+
+
 class MyAdapter : RecyclerView.Adapter<MyAdapter.ViewHolder>() {
 
     private var items = listOf<String>()
     private var shouldShowArrow: Boolean = false
 
+    fun setShouldShowArrow(shouldShowArrow: Boolean) {
+        this.shouldShowArrow = shouldShowArrow
+    }
+
     fun submitList(newList: List<String>, shouldShowArrow: Boolean = false) {
         items = newList
         this.shouldShowArrow = shouldShowArrow
-        notifyItemRangeChanged(0, items.size)
+        notifyDataSetChanged()
     }
 
     inner class ViewHolder(val binding: ItemTextBinding) :
@@ -37,7 +42,7 @@ class MyAdapter : RecyclerView.Adapter<MyAdapter.ViewHolder>() {
             binding.arrow.rotation = if (shouldShowArrow) 270f else 0f
             binding.arrow.setOnClickListener {
                 Toast.makeText(holder.itemView.context,
-                    "Arrow clicked",
+                    "${items[position]} clicked",
                     Toast.LENGTH_SHORT)
                     .show()
             }

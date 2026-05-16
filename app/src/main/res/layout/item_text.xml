@@ -21,9 +21,10 @@
         android:contentDescription="@string/arrow"
         android:visibility="gone"
         tools:visibility="visible"
+        android:layout_gravity="center"
         android:src="@drawable/m3_split_button_chevron_avd"
         android:rotation="270"
-        android:layout_width="50dp"
-        android:layout_height="50dp"/>
+        android:layout_width="30dp"
+        android:layout_height="35dp"/>
 
 </LinearLayout>

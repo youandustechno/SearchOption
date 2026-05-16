@@ -1,9 +1,8 @@
 package com.clovis.searchoption.ui.home
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,19 +13,17 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.clovis.searchoption.R
 import com.clovis.searchoption.databinding.FragmentHomeBinding
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import androidx.core.graphics.drawable.toDrawable
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 
 class HomeFragment : Fragment() {
 
@@ -148,6 +145,17 @@ class HomeFragment : Fragment() {
             etSearch.requestFocus()
         }
 
+        etSearch.setOnClickListener {
+            //etSearch.requestFocus()
+            try {
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT)
+                adapter.submitList(filtered, false)
+            } catch (e: Exception) {
+                Log.e("HomeFragment", "Error showing keyboard: ${e.message}")
+            }
+        }
+
         // Handle keyboard visibility changes
         ViewCompat.setOnApplyWindowInsetsListener(dialog.window!!.decorView) { _, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
@@ -173,20 +181,8 @@ class HomeFragment : Fragment() {
                         v.setPadding(0, 0, 0, 0)
                         insets
                     }
-
-//                    val density = recyclerView.context.resources.displayMetrics.density
-//                    //val densityPadding = resources.displayMetrics.density
-//                    etSearch.setPadding(
-//                        (16 * density).toInt(),  // start
-//                        0,                        // top
-//                        (16 * density).toInt(),  // end
-//                        0                         // bottom
-//                    )
-
                 }
 
-                //val densityPadding = resources.displayMetrics.density
-                val density = recyclerView.context.resources.displayMetrics.density
                 recyclerView.setPadding(
                     0,  // start
                     0,                        // top
@@ -199,9 +195,9 @@ class HomeFragment : Fragment() {
                     0,  // end
                     0                         // bottom
                 )
-
                 adjustRecyclerViewHeight(recyclerView, filtered.size)
-            } else if (length != 0) {
+            }
+            else if (length != 0) {
                 val screenHeight = context.resources.displayMetrics.heightPixels
                 val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
                 val statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
@@ -259,7 +255,7 @@ class HomeFragment : Fragment() {
 
                 listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_top)
                 recyclerView.visibility = View.VISIBLE
-                adapter.submitList(filtered)
+                adapter.submitList(filtered, true)
             }
 
             insets
@@ -274,20 +270,31 @@ class HomeFragment : Fragment() {
                 fullList.filter { it.lowercase().contains(query) }.take(5)
             } else emptyList()
 
+            if(filtered.isEmpty()) {
+                query = ""
+                length = 0
+                adapter.submitList(emptyList(), false)
+                recyclerView.visibility = View.GONE
+            }
+
+            Log.d("HomeFragment", "Filtered list: $filtered")
+
             if (length >= 1) {
                 recyclerView.visibility = View.VISIBLE
                 adapter.submitList(filtered)
                 adjustRecyclerViewHeight(recyclerView, filtered.size)
-            } else {
-                listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
+            }
+            else {
+                //listWrapper.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
                 searchWrapper.setPadding(
                     0, // start
                     0,                        // top
                     0,   // end
                     0
                 )
-                adapter.submitList(filtered)
-                recyclerView.visibility = View.GONE
+                query = ""
+                //adapter.submitList(emptyList())
+                //recyclerView.visibility = View.GONE
                 bottomSheet?.let { sheet ->
                     // Rounded card background matching the screenshot
                     // sheet.background = ContextCompat.getDrawable(context, R.drawable.bg_rounded_card)
