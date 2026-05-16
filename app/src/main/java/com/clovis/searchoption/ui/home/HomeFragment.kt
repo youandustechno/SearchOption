@@ -216,12 +216,12 @@ class HomeFragment : Fragment() {
                     height = availableHeight
                 }
                 val density = recyclerView.context.resources.displayMetrics.density
-                val densityPadding = resources.displayMetrics.density
+                //val densityPadding = resources.displayMetrics.density
                 val margin = (16* resources.displayMetrics.density).toInt()
                 val params = etSearch.layoutParams as ViewGroup.MarginLayoutParams
                 params.leftMargin = margin
                 params.rightMargin = margin
-                etSearch.layoutParams = params
+                //etSearch.layoutParams = params
 
                 //val densityPadding = resources.displayMetrics.density
 
