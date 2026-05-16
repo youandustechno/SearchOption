@@ -12,31 +12,17 @@ jobs:
       contents: read
 
     steps:
-      - name: Get diff
-        id: diff
-        uses: actions/github-script@v7
-        with:
-          result-encoding: string
-          script: |
-            const { data: files } = await github.rest.pulls.listFiles({
-              ...context.repo,
-              pull_number: context.issue.number
-            });
-            const kotlinFiles = files.filter(f => f.filename.endsWith(".kt") && f.patch);
-            return JSON.stringify(kotlinFiles.map(f => ({
-              filename: f.filename,
-              patch: f.patch
-            })));
-
       - name: AI Review + Comment
         uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FILES_JSON: ${{ steps.diff.outputs.result }}
         with:
           script: |
-            const rawEnv = process.env.FILES_JSON;
-            const files = JSON.parse(rawEnv.startsWith('"') ? JSON.parse(rawEnv) : rawEnv);
+            const { data: allFiles } = await github.rest.pulls.listFiles({
+              ...context.repo,
+              pull_number: context.issue.number
+            });
+            const files = allFiles.filter(f => f.filename.endsWith(".kt") && f.patch);
             let allComments = [];
             let summaryText = [];
             for (const file of files.slice(0, 5)) {
