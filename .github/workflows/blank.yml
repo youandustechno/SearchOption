@@ -31,9 +31,10 @@ jobs:
         uses: actions/github-script@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILES_JSON: ${{ steps.diff.outputs.result }}
         with:
           script: |
-            const files = JSON.parse(`${{ steps.diff.outputs.result }}`);
+            const files = JSON.parse(process.env.FILES_JSON);
             let allComments = [];
             let summaryText = [];
             for (const file of files.slice(0, 5)) {
