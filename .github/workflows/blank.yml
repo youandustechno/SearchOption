@@ -37,6 +37,7 @@ jobs:
             let allComments = [];
             let summaryText = [];
             for (const file of files.slice(0, 5)) {
+              const safePatch = file.patch.replace(/\$\{/g, "\\${");
               const prompt = `
                 You are a strict senior Android engineer reviewing a PR diff.
                 Review ONLY the changes below.
