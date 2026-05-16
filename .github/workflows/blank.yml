@@ -23,35 +23,32 @@ jobs:
               pull_number: context.issue.number
             });
             const files = allFiles.filter(f => f.filename.endsWith(".kt") && f.patch);
-            console.log(`Found ${files.length} Kotlin files`);
+            console.log("Found " + files.length + " Kotlin files");
             let summaryLines = [];
             for (const file of files.slice(0, 5)) {
               const safePatch = file.patch.replace(/\$\{/g, "\\${");
-              const prompt = `
-                You are a strict senior Android engineer reviewing a PR diff.
-                Review ONLY the changes below.
-                Rules:
-                - No generic advice
-                - Only point real issues
-                - Be concise but specific
-                For each issue:
-                - Give diff line number
-                - Explain why it's wrong
-                - Suggest exact fix
-                Return ONLY valid JSON with no markdown or fences:
-                {
-                  "comments": [{ "line": 1, "comment": "..." }],
-                  "summary": "Short overall review"
-                }
-                Diff:
-                ${safePatch}
-              `.replace(/^ {16}/gm, "").trim();
+              const prompt = [
+                "You are a strict senior Android engineer reviewing a PR diff.",
+                "Review ONLY the changes below.",
+                "Rules:",
+                "- No generic advice",
+                "- Only point real issues",
+                "- Be concise but specific",
+                "For each issue:",
+                "- Give diff line number",
+                "- Explain why it's wrong",
+                "- Suggest exact fix",
+                "Return ONLY valid JSON with no markdown or fences:",
+                '{ "comments": [{ "line": 1, "comment": "..." }], "summary": "Short overall review" }',
+                "Diff:",
+                safePatch
+              ].join("\n");
               let response;
               try {
                 response = await fetch("https://models.inference.ai.azure.com/chat/completions", {
                   method: "POST",
                   headers: {
-                    "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
+                    "Authorization": "Bearer " + process.env.GITHUB_TOKEN,
                     "Content-Type": "application/json"
                   },
                   body: JSON.stringify({
@@ -61,39 +58,50 @@ jobs:
                   })
                 });
               } catch (e) {
-                console.log(`Fetch error for ${file.filename}:`, e.message);
+                console.log("Fetch error for " + file.filename + ": " + e.message);
                 continue;
               }
               if (!response.ok) {
-                console.log(`API error for ${file.filename}:`, await response.text());
+                console.log("API error for " + file.filename + ": " + await response.text());
                 continue;
               }
               const data = await response.json();
-              console.log(`Got response for ${file.filename}`);
-              let raw = data?.choices?.[0]?.message?.content ?? "";
-              console.log(`Raw response:`, raw);
+              let raw = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || "";
+              console.log("Raw response for " + file.filename + ": " + raw);
               raw = raw.replace(/^```json\n?/i, "").replace(/```$/, "").trim();
               let parsed;
               try {
                 parsed = JSON.parse(raw);
               } catch (e) {
-                console.log(`Invalid JSON for ${file.filename}:`, raw);
+                console.log("Invalid JSON for " + file.filename + ": " + raw);
                 continue;
               }
-              let fileSection = `### \`${file.filename}\`\n`;
+              let fileSection = "### " + file.filename + "\n";
               if (parsed.summary) {
-                fileSection += `**Summary:** ${parsed.summary}\n\n`;
+                fileSection += "**Summary:** " + parsed.summary + "\n\n";
               }
               if (Array.isArray(parsed.comments) && parsed.comments.length > 0) {
                 for (const item of parsed.comments) {
                   if (!item.comment) continue;
-                  fileSection += `- **Line ${item.line}:** ${item.comment}\n`;
+                  fileSection += "- **Line " + item.line + ":** " + item.comment + "\n";
                 }
               } else {
-                fileSection += `✅ No issues found.\n`;
+                fileSection += "No issues found.\n";
               }
               summaryLines.push(fileSection);
             }
             if (summaryLines.length === 0) {
               console.log("No files reviewed.");
               return;
+            }
+            const body = "## AI PR Review\n\n" + summaryLines.join("\n---\n");
+            try {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+              console.log("Comment posted successfully");
+            } catch (e) {
+              console.log("Failed to post comment: " + e.message);
+            }
