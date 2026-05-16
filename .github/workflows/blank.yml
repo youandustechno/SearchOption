@@ -35,7 +35,8 @@ jobs:
           FILES_JSON: ${{ steps.diff.outputs.result }}
         with:
           script: |
-            const files = JSON.parse(process.env.FILES_JSON);
+            const rawEnv = process.env.FILES_JSON;
+            const files = JSON.parse(rawEnv.startsWith('"') ? JSON.parse(rawEnv) : rawEnv);
             let allComments = [];
             let summaryText = [];
             for (const file of files.slice(0, 5)) {
