@@ -55,7 +55,7 @@ jobs:
                   "summary": "Short overall review"
                 }
                 Diff:
-                ${file.patch}
+                ${safePatch}
               `.replace(/^ {16}/gm, "").trim();
               let response;
               try {
