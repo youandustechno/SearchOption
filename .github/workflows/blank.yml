@@ -3,7 +3,9 @@ name: AI PR Review
 on:
   pull_request:
     types: [opened, synchronize]
-
+  push:
+    branches:
+      - main_improvement_with_AI_copy_test-1
 jobs:
   review:
     runs-on: ubuntu-latest
