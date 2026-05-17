@@ -6,12 +6,14 @@ on:
   push:
     branches:
       - main_improvement_with_AI_copy_test-1
+
 jobs:
   review:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       models: read
+
     steps:
       - uses: actions/checkout@v3
 
@@ -27,38 +29,127 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const diff = fs.readFileSync('pr.diff', 'utf8').slice(0, 8000);
-            const response = await fetch("https://models.inference.ai.azure.com/chat/completions", {
-              method: "POST",
-              headers: {
-                "Authorization": "Bearer " + process.env.GITHUB_TOKEN,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                model: "gpt-4o-mini",
-                temperature: 0.2,
-                messages: [{
-                  role: "user",
-                  content: "You are a senior Android engineer reviewing a PR.\n" +
-                    "Review ONLY the changes below. Be specific, no generic advice.\n" +
-                    "For each issue explain why it is a problem and suggest a fix.\n" +
-                    "Focus on Kotlin best practices, Compose issues, bugs, and performance.\n" +
-                    "Diff:\n" + diff
-                }]
-              })
-            });
-            console.log("API status: " + response.status);
-            const text = await response.text();
-            console.log("API response: " + text);
-            let review = "No review generated.";
-            try {
-              const data = JSON.parse(text);
-              review = data.choices[0].message.content;
-            } catch(e) {
-              review = "API error: " + text;
+            const diffText = fs.readFileSync('pr.diff', 'utf8');
+
+            // Parse diff to extract files and their valid changed line numbers
+            function parseDiff(text) {
+              const files = [];
+              let current = null;
+              let newLineNum = 0;
+              for (const line of text.split('\n')) {
+                if (line.startsWith('diff --git')) {
+                  if (current) files.push(current);
+                  current = { filename: '', validLines: new Set(), patch: '' };
+                } else if (line.startsWith('+++ b/') && current) {
+                  current.filename = line.slice(6);
+                } else if (line.startsWith('@@ ') && current) {
+                  const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)/);
+                  if (match) newLineNum = parseInt(match[1]) - 1;
+                  current.patch += line + '\n';
+                } else if (current) {
+                  if (line.startsWith('+') && !line.startsWith('+++')) {
+                    newLineNum++;
+                    current.validLines.add(newLineNum);
+                    current.patch += line + '\n';
+                  } else if (line.startsWith('-') && !line.startsWith('---')) {
+                    current.patch += line + '\n';
+                  } else {
+                    newLineNum++;
+                    current.patch += line + '\n';
+                  }
+                }
+              }
+              if (current) files.push(current);
+              return files.filter(f => f.filename.endsWith('.kt') && f.validLines.size > 0);
             }
-            await github.rest.issues.createComment({
+
+            const files = parseDiff(diffText);
+            console.log("Kotlin files found: " + files.length);
+
+            if (files.length === 0) {
+              console.log("No Kotlin files with changes.");
+              return;
+            }
+
+            const allComments = [];
+            let overallSummary = [];
+
+            for (const file of files.slice(0, 5)) {
+              const safePatch = file.patch.replace(/\$\{/g, "\\${");
+              const validLines = Array.from(file.validLines).join(", ");
+
+              const prompt = "You are a senior Android engineer reviewing a PR diff.\n" +
+                "Review ONLY the changed lines. Be specific, no generic advice.\n" +
+                "Valid line numbers you can comment on: " + validLines + "\n" +
+                "Return ONLY valid JSON, no markdown:\n" +
+                '{ "comments": [{ "line": <number from valid lines>, "comment": "issue and fix" }], "summary": "brief overall summary" }\n' +
+                "If no issues return { \"comments\": [], \"summary\": \"...\" }\n" +
+                "File: " + file.filename + "\n" +
+                "Diff:\n" + safePatch;
+
+              const response = await fetch("https://models.inference.ai.azure.com/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": "Bearer " + process.env.GITHUB_TOKEN,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  model: "gpt-4o-mini",
+                  temperature: 0.2,
+                  messages: [{ role: "user", content: prompt }]
+                })
+              });
+
+              if (!response.ok) {
+                console.log("API error: " + await response.text());
+                continue;
+              }
+
+              const data = await response.json();
+              let raw = data.choices[0].message.content || "";
+              console.log("Response for " + file.filename + ": " + raw);
+              raw = raw.replace(/^```json\n?/i, "").replace(/```$/, "").trim();
+
+              let parsed;
+              try {
+                parsed = JSON.parse(raw);
+              } catch(e) {
+                console.log("Invalid JSON: " + raw);
+                continue;
+              }
+
+              if (parsed.summary) {
+                overallSummary.push("**" + file.filename + ":** " + parsed.summary);
+              }
+
+              if (Array.isArray(parsed.comments)) {
+                for (const item of parsed.comments) {
+                  if (!item.comment || !item.line) continue;
+                  if (!file.validLines.has(item.line)) {
+                    console.log("Skipping invalid line " + item.line + " for " + file.filename);
+                    continue;
+                  }
+                  allComments.push({
+                    path: file.filename,
+                    line: item.line,
+                    side: "RIGHT",
+                    body: "🤖 " + item.comment
+                  });
+                }
+              }
+            }
+
+            console.log("Total inline comments: " + allComments.length);
+
+            const summaryBody = overallSummary.length > 0
+              ? "## 🤖 AI PR Review\n\n" + overallSummary.join("\n")
+              : "## 🤖 AI PR Review\n\nNo issues found.";
+
+            await github.rest.pulls.createReview({
               ...context.repo,
-              issue_number: context.issue.number,
-              body: "## 🤖 AI PR Review\n\n" + review
+              pull_number: context.issue.number,
+              event: "COMMENT",
+              body: summaryBody,
+              comments: allComments
             });
+            console.log("Review posted successfully");
